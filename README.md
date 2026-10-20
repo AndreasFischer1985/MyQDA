@@ -98,7 +98,7 @@ MyQDA unterstützt die vier zentralen Grundtechniken nach Fischer (2025), die in
 
 * **Deduktion zu Kategorien:** Anwendung bereits vorhandener, theoretischer Kategoriensysteme und Regeln auf das Textkorpus.
 
-
+Weitere Informationen zur KI-basierten Inhaltsanalyse und wissenschaftliche Referenzen finden sich auf Github beispielsweise unter [https://github.com/AndreasFischer1985/AI-based-Content-Analysis](https://github.com/AndreasFischer1985/AI-based-Content-Analysis)
 
 ### 3. Festlegung der Einheiten
 
