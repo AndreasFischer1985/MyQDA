@@ -6,7 +6,7 @@
     <meta name="author" content="Dr. Andreas Fischer">
     <meta name="copyright" content="Dr. Andreas Fischer">
     <meta name="reply-to" content="andreasfischer1985@web.de">
-    <title>MyQDA - Text-Annotation-Tool v1.20</title>    
+    <title>MyQDA - Text-Annotation-Tool v1.21</title>    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
 
@@ -461,10 +461,10 @@ let CODES = [
 const PROMPT_HEADER = "Du bist ein wissenschaftlicher Assistent für qualitative Inhaltsanalysen nach Fischer (2025).\nKontext der Analyse: {context}\nText: {text}\nAufgabe: ";
 
 const PROMPT_TEMPLATES = {
-    Induktion: `${PROMPT_HEADER}Leite induktiv relevante Kategorien aus dem Text ab.\n\nGib das Ergebnis STRENG als JSON-Array im folgenden Format aus:\n[\n  {\n    "code": "Kategoriename",\n    "description": "Kurze Beschreibung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
-    Deduktion: `${PROMPT_HEADER}Wende das Kodierschema aus dem Kontext deduktiv auf den Text an.\n\nGib das Ergebnis STRENG als JSON-Array im folgenden Format aus:\n[\n  {\n    "code": "Kategoriename aus Schema",\n    "description": "Begründung der Zuordnung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
-    Zusammenfassung: `${PROMPT_HEADER}Führe eine Zusammenfassung des Textes durch. Erstelle eine Liste von Paraphrasen aller für die Analyse relevanten Textstellen. Ordne jeder Paraphrase mindestens ein exaktes wörtliches Zitat aus dem Originaltext zu.\n\nGib das Ergebnis STRENG als JSON-Array im folgenden Format aus:\n[\n  {\n    "paraphrase": "Einzelne zusammenfassende Paraphrase",\n    "textstellen": ["Exaktes wörtliches Zitat aus dem Original 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
-    Explikation: `${PROMPT_HEADER}Expliziere den Text im Hinblick auf den angegebenen Kontext. Erstelle eine Liste aller relevanten Assoziationen, Erläuterungen und Implikationen. Ordne jeder Assoziation mindestens ein exaktes wörtliches Zitat aus dem Originaltext zu.\n\nGib das Ergebnis STRENG als JSON-Array im folgenden Format aus:\n[\n  {\n    "assoziation": "Einzelne Assoziation / Erläuterung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`
+    Induktion: `${PROMPT_HEADER}Leite induktiv relevante Kategorien aus dem Text ab.\n\nGib das Ergebnis STRIKT als JSON-Array im folgenden Format aus:\n[\n  {\n    "code": "Kategoriename",\n    "description": "Kurze Beschreibung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
+    Deduktion: `${PROMPT_HEADER}Wende das Kodierschema aus dem Kontext deduktiv auf den Text an.\n\nGib das Ergebnis STRIKT als JSON-Array im folgenden Format aus:\n[\n  {\n    "code": "Kategoriename aus Schema",\n    "description": "Begründung der Zuordnung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
+    Zusammenfassung: `${PROMPT_HEADER}Führe eine Zusammenfassung des Textes durch. Erstelle eine Liste von Paraphrasen aller für die Analyse relevanten Textstellen. Ordne jeder Paraphrase mindestens ein exaktes wörtliches Zitat aus dem Originaltext zu.\n\nGib das Ergebnis STRIKT als JSON-Array im folgenden Format aus:\n[\n  {\n    "paraphrase": "Einzelne zusammenfassende Paraphrase",\n    "textstellen": ["Exaktes wörtliches Zitat aus dem Original 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`,
+    Explikation: `${PROMPT_HEADER}Expliziere den Text im Hinblick auf den angegebenen Kontext. Erstelle eine Liste aller relevanten Assoziationen, Erläuterungen und Implikationen. Ordne jeder Assoziation mindestens ein exaktes wörtliches Zitat aus dem Originaltext zu.\n\nGib das Ergebnis STRIKT als JSON-Array im folgenden Format aus:\n[\n  {\n    "assoziation": "Einzelne Assoziation / Erläuterung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`
 };
 
 let DEFAULT_SETTINGS = {
@@ -478,6 +478,7 @@ let DEFAULT_SETTINGS = {
     removeQuotes: true,
     removeDoubleSpaces: false,
     useLabeledJSON: false,
+    responseFormat: "free",
     temperature: 0.0,
     top_p: 0.95,
     top_k: 40,
@@ -485,6 +486,9 @@ let DEFAULT_SETTINGS = {
 };
 
 let SETTINGS = JSON.parse(localStorage.getItem('myqda_settings')) || DEFAULT_SETTINGS;
+if (SETTINGS.responseFormat === undefined) {
+    SETTINGS.responseFormat = "free";
+}
 
 function saveSettings() {
     localStorage.setItem('myqda_settings', JSON.stringify(SETTINGS));
@@ -1392,17 +1396,22 @@ function openAIModal() {
         <p><small><i>Anpassungen zur Erhöhung der Validität und Reliabilität sind bedarfsgemäß vorzunehmen! Weitere Informationen bei Fischer (2025) unter <a href="https://doi.org/10.25656/01:34405" target="_blank">https://doi.org/10.25656/01:34405</a></i></small></p>
         <form id="ai-form">
             <h3>Kontext & Modell</h3>
-            <div class="form-group"><label>Forschungsfrage / Kontext:</label><textarea id="ai_context">${escapeHTML(SETTINGS.context)}</textarea></div>
+            <div class="form-group"><label title="Zu welchem Zweck bzw. in welchem Kontext erfolgt die Analyse?">
+              Frage / Kontext:</label><textarea id="ai_context">${escapeHTML(SETTINGS.context)}</textarea></div>
             <div class="form-row">
-                <div class="form-group"><label>Modell Name:</label><input type="text" id="ai_model" value="${escapeHTML(SETTINGS.model)}"></div>
-                <div class="form-group"><label>API Endpunkt URL:</label><input type="text" id="ai_url" value="${escapeHTML(SETTINGS.url)}"></div>
+                <div class="form-group"><label  title="Name des vom KI-Server bereitgestellten KI-Modells">
+                   KI-Modell:</label><input type="text" id="ai_model" value="${escapeHTML(SETTINGS.model)}"></div>
+                <div class="form-group"><label  title="API-Endpunkt eines KI-Servers, z.B. &quot;http://127.0.0.1:1234/v1/chat/completions&quot;">
+                   API Endpunkt URL:</label><input type="text" id="ai_url" value="${escapeHTML(SETTINGS.url)}"></div>
             </div>
-            <div class="form-group"><label>API Key (Optional):</label><input type="text" id="ai_key" value="${escapeHTML(SETTINGS.apiKey)}"></div>
+            <div class="form-group"><label title="API-Key, falls vom KI-Server gefordert">
+              API Key (Optional):</label><input type="text" id="ai_key" value="${escapeHTML(SETTINGS.apiKey)}"></div>
             <div id="context_info_box" style="background:#f1f5f9; padding:10px; border-radius:5px; margin-bottom:15px; border: 1px solid var(--border-color);">⏳ Beziehe Modell-Informationen vom KI-Server...</div>
             
             <h3>Methodik & Parameter</h3>
             <div class="form-row">
-                <div class="form-group"><label>Analysetechnik:</label>
+                <div class="form-group"><label title="Wähle eine Analysetechnik bzw. ein Prompt-Template!">
+                    Analysetechnik:</label>
                     <select id="ai_verfahren">
                         <option value="Induktion" ${SETTINGS.verfahren==='Induktion'?'selected':''}>Induktion</option>
                         <option value="Deduktion" ${SETTINGS.verfahren==='Deduktion'?'selected':''}>Deduktion</option>
@@ -1410,7 +1419,8 @@ function openAIModal() {
                         <option value="Explikation" ${SETTINGS.verfahren==='Explikation'?'selected':''}>Explikation</option>
                     </select>
                 </div>
-                <div class="form-group"><label>Verarbeitungseinheit:</label>
+                <div class="form-group"><label title="Für welche Einheit soll eine separate Verarbeitung erfolgen?">
+		    Verarbeitungseinheit:</label>
                     <select id="ai_granularitaet">
                         <option value="Korpus" ${SETTINGS.granularitaet==='Korpus'?'selected':''}>Korpus</option>
                         <option value="Dokument" ${SETTINGS.granularitaet==='Dokument'?'selected':''}>Dokument</option>
@@ -1418,17 +1428,41 @@ function openAIModal() {
                     </select>
                 </div>
             </div>
+            
             <div class="form-row">
-                <div class="form-group"><label>Temperature:</label><input type="number" step="0.1" id="ai_temp" value="${SETTINGS.temperature}"></div>
-                <div class="form-group"><label>Top_P:</label><input type="number" step="0.1" id="ai_topp" value="${SETTINGS.top_p}"></div>
-                <div class="form-group"><label>Top_K:</label><input type="number" step="1" id="ai_topk" value="${SETTINGS.top_k}"></div>
+                <div class="form-group"><label title="Setze Parameter &quot;temperature&quot; zur Skalierung der Wahrscheinlichkeitsverteilung (0 für deterministischste Ergebnisse)">Temperature:</label><input type="number" step="0.1" id="ai_temp" value="${SETTINGS.temperature}"></div>
+                <div class="form-group"><label title="Setze Parameter &quot;top_p&quot;, die kumulierte Wahrscheinlichkeit p einbezogener Token-Kandidaten">
+			Top_P:</label><input type="number" step="0.1" id="ai_topp" value="${SETTINGS.top_p}"></div>
+                <div class="form-group"><label title="Setze Parameter &quot;top_k&quot;, die Anzahl k einbezogener Token-Kandidaten">Top_K:</label><input type="number" step="1" id="ai_topk" value="${SETTINGS.top_k}"></div>
             </div>
-            <div class="form-group"><label>Prompt-Template:</label><textarea id="ai_prompt" style="height:150px;">${escapeHTML(SETTINGS.promptTemplate)}</textarea></div>
+            <div class="form-group"><label title="Passe das Prompt-Template bei Bedarf an!">Prompt-Template:</label><textarea id="ai_prompt" style="height:150px;">${escapeHTML(SETTINGS.promptTemplate)}</textarea></div>
+
             <div class="form-group">
-                <label><input type="checkbox" id="ai_streaming" ${SETTINGS.useStreaming?'checked':''}> Live-Streaming (SSE)</label><br>
-                <label><input type="checkbox" id="ai_quotes" ${SETTINGS.removeQuotes?'checked':''}> Anführungszeichen entfernen</label><br>
-                <label><input type="checkbox" id="ai_spaces" ${SETTINGS.removeDoubleSpaces?'checked':''}> Doppelte Leerzeichen entfernen</label><br>
-                <label><input type="checkbox" id="ai_json_prep" ${SETTINGS.useLabeledJSON?'checked':''}> Labeled JSON</label>
+          <label>Vorverarbeitung:</label>
+                <label title="Ersetze doppelte durch einfache Anführungszeichen in den Verarbeitungseinheiten">
+                  <input type="checkbox" id="ai_quotes" ${SETTINGS.removeQuotes?'checked':''}> Anführungszeichen ersetzen</label><br>
+                <label title="Entferne doppelte Leerzeichen, Leerzeichen, Tabs oder Zeilenumbrüche in den Verarbeitungseinheiten">
+                  <input type="checkbox" id="ai_spaces" ${SETTINGS.removeDoubleSpaces?'checked':''}> Doppelte Leerzeichen entfernen</label><br>
+                <label title="Ergänze Labels der Verarbeitungseinheiten">
+                  <input type="checkbox" id="ai_json_prep" ${SETTINGS.useLabeledJSON?'checked':''}> Labeled JSON</label>
+            </div>
+            <div class="form-group">
+                <label>Strukturierte Ausgabe:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 6px; font-weight: normal;">
+                    <label style="cursor: pointer;" title="Ergänze keinen Parameter zum response_format (default)">
+			<input type="radio" name="ai_response_format" value="free" ${SETTINGS.responseFormat==='free'?'checked':''}> free speech (default)</label>
+                    <label style="cursor: pointer;" title="Ergänze parameter response_format = { type: &quot;json_schema&quot; [...] }">
+			<input type="radio" name="ai_response_format" value="json_lmstudio" ${SETTINGS.responseFormat==='json_lmstudio'?'checked':''}> json_schema (LMStudio)</label>
+                    <label style="cursor: pointer;"  title="Ergänze parameter response_format = { type: &quot;json_object&quot; }">
+			<input type="radio" name="ai_response_format" value="json_vllm"  ${SETTINGS.responseFormat==='json_vllm'?'checked':''}> json_object (vLLM, Jan.ai)</label>
+                    <label style="cursor: pointer;"  title="Ergänze parameter format = &quot;json&quot;">
+			<input type="radio" name="ai_response_format" value="json_ollama" ${SETTINGS.responseFormat==='json_ollama'?'checked':''}> json (Ollama)</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label title="Aktiviere Streaming">
+                   <input type="checkbox" id="ai_streaming" ${SETTINGS.useStreaming?'checked':''}> Live-Streaming (SSE)</label><br>
             </div>
             <button type="submit" style="background-color: var(--accent-purple); width:100%; padding: 10px;">Analyse starten</button>
         </form>`;
@@ -1448,6 +1482,8 @@ function openAIModal() {
         SETTINGS.apiKey = document.getElementById('ai_key').value;
         SETTINGS.verfahren = document.getElementById('ai_verfahren').value;
         SETTINGS.granularitaet = document.getElementById('ai_granularitaet').value;
+        const selectedFormatRadio = document.querySelector('input[name="ai_response_format"]:checked');
+        SETTINGS.responseFormat = selectedFormatRadio ? selectedFormatRadio.value : 'free';
         SETTINGS.temperature = parseFloat(document.getElementById('ai_temp').value) || 0.0;
         SETTINGS.top_p = parseFloat(document.getElementById('ai_topp').value) || 0.95;
         SETTINGS.top_k = parseFloat(document.getElementById('ai_topk').value) || 40;
@@ -1501,7 +1537,7 @@ async function runAIAnalysis(config) {
     if (config.granularitaet === 'Dokument') {
         validDocs.forEach(doc => {
             let clean = getDocText(doc) || '';
-            if (config.removeQuotes) clean = clean.replace(/["'„“]/g, '');
+            if (config.removeQuotes) clean = clean.replace(/["„“”]/g, "'");
             if (config.removeDoubleSpaces) clean = clean.replace(/\s+/g, ' ');
             textsToAnalyze.push({ title: doc.name, payload: config.useLabeledJSON ? JSON.stringify({ title: doc.name, content: clean }) : clean });
         });
@@ -1551,12 +1587,13 @@ async function runAIAnalysis(config) {
             <ul style="margin: 0; padding-left: 20px; color: var(--text-dark); line-height: 1.5;">
                 <li><strong>Forschungsfrage / Kontext:</strong> ${escapeHTML(config.context) || '<i>Keiner angegeben</i>'}</li>
                 <li><strong>Verfahren:</strong> ${config.verfahren} | <strong>Granularität:</strong> ${config.granularitaet}</li>
+                <li><strong>Antwort-Format:</strong> ${config.responseFormat}</li>
                 <li><strong>Modell:</strong> ${config.model} (Temp: ${config.temperature}, Top_P: ${config.top_p}, Top_K: ${config.top_k})</li>
                 <li><strong>Optionen:</strong> 
                     Anführungszeichen entfernen: ${config.removeQuotes ? 'Ja' : 'Nein'} | 
                     Doppelte Leerzeichen entfernen: ${config.removeDoubleSpaces ? 'Ja' : 'Nein'} | 
                     Labeled JSON: ${config.useLabeledJSON ? 'Ja' : 'Nein'} </li>
-                <li><strong>Prompt-Template:</strong> ${config.promptTemplate}</li>
+                <li><strong>Prompt-Template:</strong> ${config.promptTemplate.replace(/\r?\n|\r/g, "\\n")}</li>
             </ul>
         </div>
 	<hr>
@@ -1570,7 +1607,7 @@ async function runAIAnalysis(config) {
         const promptHtml = `	    
             <div style="background: #f8fafc; border: 1px solid var(--border-color); border-left: 4px solid var(--primary); padding: 12px 15px; margin: 10px 0 15px 0; border-radius: 4px; font-size: 0.9em;">
                 <details style="margin: 0; padding-left: 20px; color: var(--text-dark); line-height: 1.5;">
-                  <summary><strong>⚙️ Prompt:</strong></summary><small>${textPrompt}</small>                
+                  <summary><strong>⚙️ Prompt</strong></summary><small>${textPrompt}</small>                
                 </details>
             </div>
         `;
@@ -1581,54 +1618,127 @@ async function runAIAnalysis(config) {
             temperature: config.temperature, top_p: config.top_p, top_k: config.top_k, stream: config.useStreaming
         };
         if (config.model) requestBody.model = config.model;
+        if (config.responseFormat === 'json_lmstudio') {
+            let properties = {};
+            let required = [];
 
-        try {
-            const response = await fetch(config.url, { method: 'POST', headers: headers, body: JSON.stringify(requestBody) });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            let aiAnswer = "";
+            if (config.verfahren === 'Zusammenfassung') {
+                properties = {
+                    paraphrase: { type: "string" },
+                    textstellen: { type: "array", items: { type: "string" } }
+                };
+                required = ["paraphrase", "textstellen"];
+            } else if (config.verfahren === 'Explikation') {
+                properties = {
+                    assoziation: { type: "string" },
+                    textstellen: { type: "array", items: { type: "string" } }
+                };
+                required = ["assoziation", "textstellen"];
+            } else {
+                // Induktion & Deduktion
+                properties = {
+                    code: { type: "string" },
+                    description: { type: "string" },
+                    textstellen: { type: "array", items: { type: "string" } }
+                };
+                required = ["code", "description", "textstellen"];
+            }
 
-            if (config.useStreaming) {
-                const boxId = `stream-box-${i}`, targetId = `stream-target-${i}`;
-                updateDocContent(`<div id="${boxId}" style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;"><h3 style="margin-top:0;">Ergebnis für ${escapeHTML(item.title)}</h3><pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre></div><hr>`);
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let buffer = "";
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop();
-                    for (const line of lines) {
-                        const trimmed = line.trim();
-                        if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                            try {
-                                const parsed = JSON.parse(trimmed.substring(6));
-                                const content = parsed.choices?.[0]?.delta?.content || "";
-                                if (content) {
-                                    aiAnswer += content;
-                                    const targetEl = document.getElementById(targetId);
-                                    if (targetEl && selectedDocument && selectedDocument.id === newDoc.id) targetEl.innerText = aiAnswer;
-                                }
-                            } catch (e) {}
+            requestBody.response_format = {
+                type: "json_schema",
+                json_schema: {
+                    name: "kategorie_array",
+                    schema: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: properties,
+                            required: required,
+                            additionalProperties: false
                         }
                     }
                 }
-                const renderedHtml = renderAIResult(aiAnswer, config.verfahren);
-                currentHtml = currentHtml.replace(`<pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>`, renderedHtml);
-                newDoc.htmlContent = currentHtml;
-                if (selectedDocument && selectedDocument.id === newDoc.id) textDisplay.innerHTML = currentHtml;
-            } else {
-                const data = await response.json();
-                aiAnswer = data.choices?.[0]?.message?.content || "";
-                updateDocContent(`<div style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;">${renderAIResult(aiAnswer, config.verfahren)}</div><hr>`);
-            }
-        } catch (err) {
-            var message = escapeHTML(err.message);
-            if(message==="NetworkError when attempting to fetch resource.") message="LLM-Server antwortet nicht. Prüfe die Angaben zu Endpunkt & Modell in MyQDA sowie Funktionalität und Einstellungen des KI-Servers (enable CORS).";
-            updateDocContent(`<p style="color:#e11d48;">Fehler: ${message}</p>`);
+            };
+        } else if (config.responseFormat === 'json_vllm' || config.responseFormat === 'json_jan') {
+            requestBody.response_format = { type: "json_object" };
+        } else if (config.responseFormat === 'json_ollama') {
+            requestBody.format = "json";
         }
+        try {
+
+    const response = await fetch(config.url, { method: 'POST', headers: headers, body: JSON.stringify(requestBody) });
+    
+    if (!response.ok) {
+        // Detaillierte Fehlermeldung aus dem Antwort-Body des Servers auslesen
+        let errorDetails = "";
+        try {
+            const errorJson = await response.json();
+            // Unterstützt gängige API-Strukturen (z.B. OpenAI, Ollama, etc.)
+            errorDetails = errorJson.error?.message || errorJson.message || JSON.stringify(errorJson);
+        } catch (e) {
+            // Fallback, falls kein JSON zurückgegeben wurde (z. B. HTML-Fehlerseiten)
+            errorDetails = await response.text();
+        }
+        throw new Error(`HTTP ${response.status}${errorDetails ? ': ' + errorDetails : ''}`);
+    }
+
+    let aiAnswer = "";
+
+    if (config.useStreaming) {
+        const boxId = `stream-box-${i}`, targetId = `stream-target-${i}`;
+        updateDocContent(`<div id="${boxId}" style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;"><h3 style="margin-top:0;">Ergebnis für ${escapeHTML(item.title)}</h3><pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre></div><hr>`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop();
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+                    try {
+                        const parsed = JSON.parse(trimmed.substring(6));
+                        const content = parsed.choices?.[0]?.delta?.content || "";
+                        if (content) {
+                            aiAnswer += content;
+                            const targetEl = document.getElementById(targetId);
+                            if (targetEl && selectedDocument && selectedDocument.id === newDoc.id) targetEl.innerText = aiAnswer;
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+        const renderedHtml = renderAIResult(aiAnswer, config.verfahren);
+        currentHtml = currentHtml.replace(`<pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>`, renderedHtml);
+        newDoc.htmlContent = currentHtml;
+        if (selectedDocument && selectedDocument.id === newDoc.id) textDisplay.innerHTML = currentHtml;
+    } else {
+        const data = await response.json();
+        aiAnswer = data.choices?.[0]?.message?.content || "";
+        updateDocContent(`<div style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;">${renderAIResult(aiAnswer, config.verfahren)}</div><hr>`);
+    }
+} catch (err) {
+    var rawMessage = err.message || "";
+    var message = "";
+
+    // Prüfung auf Netzwerkfehler (Firefox, Chrome/Edge sowie allgemeine Typ-Fehler bei Verbindungsproblemen)
+    if (
+        rawMessage.includes("NetworkError") || 
+        rawMessage.includes("Failed to fetch") || 
+        err.name === "TypeError"
+    ) {
+        message = "LLM-Server antwortet nicht. Prüfe die Angaben zu Endpunkt & Modell in MyQDA sowie Funktionalität und Einstellungen des KI-Servers (enable CORS).";
+    } else {
+        message = escapeHTML(rawMessage);
+    }
+
+    updateDocContent(`<p style="color:#e11d48;">Fehler: ${message}</p>`);
+}
+
     }
 }
 
@@ -1810,6 +1920,7 @@ async function handleFileSelection() {
         DOCUMENTS = data[0]["DOCUMENTS"] || [];
         CODES = data[0]["CODES"] || [];
         SETTINGS = data[0]["SETTINGS"] || DEFAULT_SETTINGS;
+        if (SETTINGS.responseFormat === undefined) SETTINGS.responseFormat = "free";
         CODES.forEach(c => { if (c.parentId === undefined) c.parentId = null; });
         DOCUMENTS.forEach(d => {
             if (d.selectedForAI === undefined) {
@@ -1899,7 +2010,6 @@ resizer.addEventListener('mousedown', (e) => {
     document.addEventListener('mouseup', onMouseUp);
 });
 
-// Neuer Resizer für die vertikale Trennlinie zwischen linker Seitenleiste und Hauptinhalt
 const sidebarResizer = document.getElementById('sidebar-resizer');
 const appContainer = document.getElementById('app-container');
 
