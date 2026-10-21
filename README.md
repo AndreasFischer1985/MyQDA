@@ -36,7 +36,7 @@ Wenn man MyQDA beispielsweise mit einem lokalen KI-Server per Jan.ai nutzen möc
 
 Mit diesen Einstellungen lässt sich ein local API Server per Jan.ai starten (Button „Start Server“), der sich für KI-basierte Inhaltsanalysen in MyQDA nutzen lässt. 
 
-Verbreitete Alternativen zu Jan.ai stellen z.B. LMStudio (wo man in den Settings zu Model Server *Enable CORS* aktivieren muss), Ollama (wo man *set "OLLAMA_ORIGINS=*"* setzen muss), oder - im Rahmen von Command-Line-Interfaces - llama.cpp dar.
+Verbreitete Alternativen zu Jan.ai stellen z.B. LMStudio (wo man in den Settings zu Model Server *Enable CORS* aktivieren muss), Ollama (wo man *set "OLLAMA_ORIGINS=\*"* setzen muss), oder - im Rahmen von Command-Line-Interfaces - llama.cpp dar.
 
 
 ---
