@@ -1,6 +1,6 @@
 # MyQDA - Text-Annotation-Tool
 
-[MyQDA](https://andreasfischer1985.github.io/MyQDA/src/MyQDA.html) ist ein Open-Source-Tool für die qualitative Datenauswertung (QDA), das die Durchführung KI-basierter Inhaltsanalysen nach [Fischer (2025)](https://doi.org/10.25656/01:34405) auf eine strukturierte, transparente und digital souveräne Art und Weise ermöglicht. Das gesamte Tool ist vollständig in einer einzigen HTML-Datei beschrieben und offen einsehbar – ein entscheidender Vorteil für nachvollziehbare und replizierbare wissenschaftliche Analysen.
+[MyQDA](https://andreasfischer1985.github.io/MyQDA/src/MyQDA.html) ist ein Open-Source-Tool für die qualitative Datenauswertung (QDA), welches die Durchführung KI-basierter Inhaltsanalysen nach [Fischer (2025)](https://doi.org/10.25656/01:34405) auf eine strukturierte, transparente und digital souveräne Art und Weise ermöglicht. Das gesamte Tool ist vollständig in einer einzigen HTML-Datei beschrieben und offen einsehbar – ein entscheidender Vorteil für nachvollziehbare und replizierbare wissenschaftliche Analysen.
 
 ---
 
@@ -69,7 +69,7 @@ Um eine bestehende Kodierung zu entfernen, markieren Sie den entsprechenden anno
   
 ---
 
-## 📖 KI-basierte Inhaltsanalyse 
+### 📖 KI-basierte Inhaltsanalyse 
 
 
 Das von Fischer (2025) vorgeschlagene Ablaufmodell für die KI-gestützte qualitative Inhaltsanalyse gliedert sich in sechs systematische Phasen, die direkt in MyQDA abgebildet werden:
@@ -112,7 +112,7 @@ Weitere Informationen zur KI-basierten Inhaltsanalyse und wissenschaftliche Refe
 
 
 
-### 4. Prozess (Prompting & Durchführung)
+### 4. Prozess (Prompting & Verarbeitungsspezifikation)
 
 * **Vorverarbeitung:** Aufbereitungs und Einbettung der Daten in vordefinierte Prompt-Templates (die Sie in MyQDA bedarfsgemäß anpassen können).
 
@@ -146,7 +146,7 @@ Weitere Informationen zur KI-basierten Inhaltsanalyse und wissenschaftliche Refe
 
 ## 📜 Lizenz & Zitiervorschlag
 
-* **Lizenz:** Open Source.
+* **Lizenz:** Open Source (tba...)
 
 
 * **Methodische Grundlagen:** Bitte zitieren Sie bei der Verwendung des Ansatzes die zugrundeliegende Methodik nach Fischer (2025):
