@@ -6,9 +6,32 @@
     <meta name="author" content="Dr. Andreas Fischer">
     <meta name="copyright" content="Dr. Andreas Fischer">
     <meta name="reply-to" content="andreasfischer1985@web.de">
-    <title>MyQDA - Text-Annotation-Tool v1.21</title>    
+    <title>MyQDA - Text-Annotation-Tool v1.22</title>    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>   
+    <script type="module">
+        (async function() {
+            try {
+                const moduleUrl = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/index.js';
+                const res = await fetch(moduleUrl);
+                let code = await res.text();
+                
+                code = code.replaceAll('./single-thread/', 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/single-thread/');
+                code = code.replaceAll('./multi-thread/', 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/multi-thread/');
+                code = code.replaceAll('./wasm/', 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/');
+
+                const blob = new Blob([code], { type: 'application/javascript'});
+                const blobUrl = URL.createObjectURL(blob);
+
+                const wllamaModule = await import(blobUrl);
+                window.Wllama = wllamaModule.Wllama;
+                window.WasmFromCDN = wllamaModule.WasmFromCDN;
+                console.log("[INFO] Wllama v3.8.1 erfolgreich via Blob/import geladen.");
+            } catch (err) {
+                console.error('[ERROR] Konnte Wllama 3.8.1 nicht laden:', err);
+            }
+        })();
+    </script>
 
     <style>
         :root {
@@ -40,6 +63,10 @@
         nav {
             background-color: var(--primary);
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-right: 18px;
         }
 
         nav ul {
@@ -73,7 +100,7 @@
             top: 100%;
             left: 0;
             background-color: var(--primary);
-            min-width: 180px;
+            min-width: 220px;
             box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
             z-index: 999;
             list-style-type: none;
@@ -271,12 +298,12 @@
 
         .modal-content {
             background-color: #fff;
-            margin: 4% auto;
+            margin: 3% auto;
             padding: 24px;
             border-radius: 8px;
-            width: 65%;
-            max-width: 850px;
-            max-height: 85vh;
+            width: 75%;
+            max-width: 950px;
+            max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
         }
@@ -291,8 +318,8 @@
 
         .close-modal:hover { color: #1e293b; }
 
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #334155; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #334155; }
         .form-group input[type="text"], .form-group input[type="number"], .form-group textarea, .form-group select {
             width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 5px; box-sizing: border-box; background-color: #f8fafc;
         }
@@ -348,6 +375,34 @@
         .color-picker-wrapper input[type="color"] {
             width: 40px; height: 38px; border: 1px solid var(--border-color); border-radius: 5px; padding: 2px; cursor: pointer; background: #fff;
         }
+
+        .server-status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .status-aus { background: #fee2e2; color: #991b1b; }
+        .status-an { background: #d1fae5; color: #065f46; }
+        .status-processing { background: #fef3c7; color: #92400e; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .diagnostics-console {
+            background: #0f172a;
+            color: #38bdf8;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8em;
+            padding: 10px;
+            border-radius: 6px;
+            height: 160px;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -363,6 +418,7 @@
             <li><a id="export">Export QDPX</a></li>
             <li><a id="import-doc-menu">Import Document</a></li>
             <li><a id="import-folder-menu">Import Folder</a></li>
+            <li><a href="#" onclick="event.preventDefault(); openLocalServerModal();">🖥️ WASM GGUF Server (experimental)</a></li>
           </ul>
         </li>
       </ul>
@@ -467,6 +523,7 @@ const PROMPT_TEMPLATES = {
     Explikation: `${PROMPT_HEADER}Expliziere den Text im Hinblick auf den angegebenen Kontext. Erstelle eine Liste aller relevanten Assoziationen, Erläuterungen und Implikationen. Ordne jeder Assoziation mindestens ein exaktes wörtliches Zitat aus dem Originaltext zu.\n\nGib das Ergebnis STRIKT als JSON-Array im folgenden Format aus:\n[\n  {\n    "assoziation": "Einzelne Assoziation / Erläuterung",\n    "textstellen": ["Exaktes wörtliches Zitat 1", "Exaktes wörtliches Zitat 2"]\n  }\n]`
 };
 
+
 let DEFAULT_SETTINGS = {
     model: "google/gemma-4-12b-qat",
     url: "http://127.0.0.1:1234/v1/chat/completions",
@@ -482,16 +539,47 @@ let DEFAULT_SETTINGS = {
     temperature: 0.0,
     top_p: 0.95,
     top_k: 40,
-    useStreaming: true
+    useStreaming: true,
+    ctxSize: 2048
+};
+
+
+
+
+let WLLAMA_SERVER_STATE = {
+    status: "aus", // "aus", "an", "processing"
+    selectedSourceType: 'download',
+    selectedUrl: 'https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf',
+    selectedFileName: 'Gemma-3-1b-it',
+    localFile: null,
+    wllamaInstance: null,
+    logs: ["[INFO] System initialisiert. Wllama v3.8.1 GGUF Server bereit."]
 };
 
 let SETTINGS = JSON.parse(localStorage.getItem('myqda_settings')) || DEFAULT_SETTINGS;
 if (SETTINGS.responseFormat === undefined) {
     SETTINGS.responseFormat = "free";
 }
+if (SETTINGS.ctxSize === undefined) {
+    SETTINGS.ctxSize = 2048;
+}
 
 function saveSettings() {
     localStorage.setItem('myqda_settings', JSON.stringify(SETTINGS));
+}
+
+function logDiagnostic(msg) {
+    const timestamp = new Date().toLocaleTimeString('de-DE');
+    const logEntry = `[${timestamp}] ${msg}`;
+    console.log(logEntry);
+    WLLAMA_SERVER_STATE.logs.push(logEntry);
+    if (WLLAMA_SERVER_STATE.logs.length > 50) WLLAMA_SERVER_STATE.logs.shift();
+    
+    const consoleEl = document.getElementById('diagnostics-console-box');
+    if (consoleEl) {
+        consoleEl.innerText = WLLAMA_SERVER_STATE.logs.join('\n');
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
 }
 
 let selectedCode = null;
@@ -551,7 +639,7 @@ document.getElementById('save').addEventListener('click', () => { triggerSavePro
 
 function triggerSaveProject() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
-        JSON.stringify([{"CODES": CODES, "DOCUMENTS": DOCUMENTS, "SETTINGS": SETTINGS}])
+        JSON.stringify([{"CODES": CODES, "DOCUMENTS": DOCUMENTS, "SETTINGS": SETTINGS, "WLLAMA_SERVER_STATE": WLLAMA_SERVER_STATE}])
     );	
     const dlAnchorElem = document.getElementById('downloadAnchorElem');
     dlAnchorElem.setAttribute("href", dataStr);
@@ -578,8 +666,7 @@ async function extractTextFromFile(file) {
             }
             return fullText.trim();
         } catch (err) {
-            console.error("Fehler beim PDF.js Einlesen:", err);
-            alert(`Fehler beim Einlesen der PDF-Datei "${file.name}": ${err.message}`);
+            logDiagnostic(`PDF-Fehler: ${err.message}`);
             return "";
         }
     } else {
@@ -628,6 +715,345 @@ document.getElementById('folder-file-input').addEventListener('change', async (e
     if (addedCount > 0) alert(`${addedCount} Dokument(e) erfolgreich aus Ordner importiert.`);
     e.target.value = '';
 });
+
+// --- WLLAMA v3.8.1 GGUF SERVER INTEGRATION MIT API v3.8.1 ---
+function downloadSelectedWllamaModel() {
+    const url = WLLAMA_SERVER_STATE.selectedUrl;
+    if (!url) {
+        alert("Keine gültige Modell-URL ausgewählt.");
+        return;
+    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    logDiagnostic(`Browser-Download für Modell gestartet: ${url}`);
+}
+
+function openLocalServerModal() {
+    const statusClass = WLLAMA_SERVER_STATE.status === 'an' ? 'status-an' : (WLLAMA_SERVER_STATE.status === 'processing' ? 'status-processing' : 'status-aus');
+    
+    let html = `
+        <h2>🖥️ WASM GGUF Server (experimental)</h2>
+        <p><small><i>In-Browser LLM-Inferenz für kleine Modelle via Wllama v3.8.1 (aktuell nur für Funktionstests geeignet)</i></small></p>        
+        <div style="background:#f8fafc; padding:12px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>Server Status:</strong>
+                <span id="modal-server-status-badge" class="server-status-badge ${statusClass}">${WLLAMA_SERVER_STATE.status.toUpperCase()}</span>
+            </div>
+            <div style="margin-top:6px; font-size:0.9em; color:var(--text-muted);">Aktives Modell: <strong style="color:var(--text-dark);">${escapeHTML(WLLAMA_SERVER_STATE.selectedFileName)}</strong> | Kontext (ctx): <strong>${SETTINGS.ctxSize}</strong> | Temp: <strong>${SETTINGS.temperature}</strong></div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group" style="flex:2;">
+                <label>Kleine GGUF-Modelle für einfache Funktionstests herunterladen:</label>
+                <select id="wllama_model_select" style="width:100%; margin-bottom: 8px;">
+ <option value="https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('Gemma-3-1b-it') ? 'selected' : ''}>Gemma-3-1b-it-GGUF (Q4 ~787MB)</option>
+                    <option value="https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('Qwen2.5-0.5B') ? 'selected' : ''}>Qwen 2.5 0.5B Instruct (Q4 ~390MB)</option>
+                    <option value="https://huggingface.co/jeradf/SmolLM2-135M-Instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('SmolLM2') ? 'selected' : ''}>SmolLM2 135M Instruct (Q4 ~98MB)</option>                  
+                </select>
+                <button type="button" onclick="downloadSelectedWllamaModel()" style="background-color: var(--accent-blue); width: 100%; padding: 6px; font-size: 0.85em; margin-bottom: 8px;">Modelldatei herunterladen</button>
+            </div>
+            <div class="form-group"><label>Kontext (ctx):</label><input type="number" id="wllama_ctx" value="${SETTINGS.ctxSize}"></div>
+            <div class="form-group"><label>Temp:</label><input type="number" step="0.1" id="wllama_temp" value="${SETTINGS.temperature}"></div>
+        </div>
+
+        <div id="wllama_local_file_box" class="form-group" style="display: block;">
+            <label>Lokale .gguf Datei:</label>
+            <input type="file" id="wllama_local_file_input" accept=".gguf">
+        </div>
+
+        <button type="button" onclick="toggleWllamaServerState()" style="background-color: ${(WLLAMA_SERVER_STATE.status === 'an' || WLLAMA_SERVER_STATE.status === 'processing') ? '#c62828' : 'var(--accent-green)'}; width:100%; padding: 10px; margin-bottom: 12px;">
+    ${(WLLAMA_SERVER_STATE.status === 'an' || WLLAMA_SERVER_STATE.status === 'processing') ? '⏹️ GGUF Server Stoppen' : '▶️ GGUF Server Starten'}
+        </button>
+
+        <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <label style="margin:0;">📋 WASM GGUF Server Logfile:</label>
+                <button type="button" onclick="WLLAMA_SERVER_STATE.logs = []; openLocalServerModal();" style="background:#cbd5e1; color:#1e293b; padding:2px 6px; font-size:0.75em;">Log leeren</button>
+            </div>
+            <div id="diagnostics-console-box" class="diagnostics-console">${escapeHTML(WLLAMA_SERVER_STATE.logs.join('\n'))}</div>
+        </div>
+    `;
+    openModalWithHTML(html);
+
+    document.getElementById('wllama_model_select').addEventListener('change', (e) => {
+        const val = e.target.value;
+        WLLAMA_SERVER_STATE.selectedSourceType = 'download';
+        WLLAMA_SERVER_STATE.selectedUrl = val;
+        const selectedOpt = e.target.options[e.target.selectedIndex];
+        WLLAMA_SERVER_STATE.selectedFileName = selectedOpt.text.split('(')[0].trim();
+        logDiagnostic(`Modell-URL ausgewählt: ${WLLAMA_SERVER_STATE.selectedFileName}`);
+    });
+
+    const fileInput = document.getElementById('wllama_local_file_input');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                WLLAMA_SERVER_STATE.selectedSourceType = 'local';
+                WLLAMA_SERVER_STATE.localFile = e.target.files[0];
+                WLLAMA_SERVER_STATE.selectedFileName = WLLAMA_SERVER_STATE.localFile.name;
+                logDiagnostic(`Lokale Datei zugewiesen: ${WLLAMA_SERVER_STATE.selectedFileName} (${(WLLAMA_SERVER_STATE.localFile.size / (1024*1024)).toFixed(1)} MB)`);
+            }
+        });
+    }
+}
+
+async function toggleWllamaServerState() {
+    if (WLLAMA_SERVER_STATE.status === 'an' || WLLAMA_SERVER_STATE.status === 'processing') {
+        await stopWllamaServer();
+    } else {
+        const ctxInput = document.getElementById('wllama_ctx');
+        const tempInput = document.getElementById('wllama_temp');
+        if (ctxInput && tempInput) {
+            SETTINGS.ctxSize = parseInt(ctxInput.value) || 2048;
+            SETTINGS.temperature = parseFloat(tempInput.value) || 0.7;
+            SETTINGS.model = WLLAMA_SERVER_STATE.selectedFileName;
+            SETTINGS.url = "http://localhost:8080/v1/chat/completions";
+
+            saveSettings();
+            logDiagnostic(`Konfiguration übernommen -> ctx: ${SETTINGS.ctxSize}, temp: ${SETTINGS.temperature}`);
+        }
+        await startWllamaServer();
+    }
+    if (document.getElementById('app-modal').style.display === 'block' && WLLAMA_SERVER_STATE.status !== 'an') {
+        openLocalServerModal();
+    }
+}
+
+async function startWllamaServer() {
+    if (WLLAMA_SERVER_STATE.status === 'an' || WLLAMA_SERVER_STATE.status === 'processing') return;
+
+    if (WLLAMA_SERVER_STATE.selectedSourceType === 'local' && !WLLAMA_SERVER_STATE.localFile) {
+        alert("Bitte wählen Sie zuerst eine lokale .gguf Datei aus.");
+        return;
+    }
+
+    if (!window.Wllama) {
+        alert("Wllama Runtime ist noch nicht geladen. Bitte kurz warten.");
+        return;
+    }
+
+    WLLAMA_SERVER_STATE.status = 'processing';
+    updateServerBadge();
+    logDiagnostic(`[SERVER] Starte Server-Initialisierung für Modell: ${WLLAMA_SERVER_STATE.selectedFileName}`);
+
+    try {
+        if (WLLAMA_SERVER_STATE.wllamaInstance) {
+            logDiagnostic("[SERVER] Entlade vorherige Wllama-Instanz...");
+            try { await WLLAMA_SERVER_STATE.wllamaInstance.exit(); } catch(e){}
+            WLLAMA_SERVER_STATE.wllamaInstance = null;
+        }
+
+        logDiagnostic(`[SERVER] Instanziiere Wllama v3.8.1 Runtime (ctx: ${SETTINGS.ctxSize})...`);
+        
+        const customLogger = {
+            debug: (...args) => logDiagnostic('[DEBUG] ' + args.join(' ')),
+            log: (...args) => logDiagnostic('[LOG] ' + args.join(' ')),
+            warn: (...args) => logDiagnostic('[WARN] ' + args.join(' ')),
+            error: (...args) => logDiagnostic('[ERROR] ' + args.join(' '))
+        };
+
+        WLLAMA_SERVER_STATE.wllamaInstance = new window.Wllama({
+            'default': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/wllama.wasm'
+        }, {
+            logger: customLogger
+        });
+
+        const wllama = WLLAMA_SERVER_STATE.wllamaInstance;
+        const ctxSize = SETTINGS.ctxSize;
+
+        if (WLLAMA_SERVER_STATE.selectedSourceType === 'local' && WLLAMA_SERVER_STATE.localFile) {
+            logDiagnostic(`[SERVER] Lade lokale Datei in den Speicher...`);
+            await wllama.loadModel([WLLAMA_SERVER_STATE.localFile], { n_ctx: ctxSize, jinja: true });
+        } else {
+            logDiagnostic(`[SERVER] Lade Modell via URL: ${WLLAMA_SERVER_STATE.selectedUrl}`);
+            await wllama.loadModelFromUrl(WLLAMA_SERVER_STATE.selectedUrl, {
+                n_ctx: ctxSize,
+                jinja: true,
+                progressCallback: ({ loaded, total }) => {
+                    if (total) {
+                        const pct = Math.round((loaded / total) * 100);
+                        if (pct % 20 === 0) logDiagnostic(`[DOWNLOAD] Fortschritt: ${pct}% (${(loaded/(1024*1024)).toFixed(1)} MB)`);
+                    }
+                }
+            });
+        }
+
+        WLLAMA_SERVER_STATE.status = 'an';
+        updateServerBadge();
+        logDiagnostic("[SERVER] Status: AN & BEREIT auf http://localhost:8080/v1/chat/completions");
+        alert("Wllama v3.8.1 GGUF Server erfolgreich gestartet!");
+        closeModal();
+    } catch (err) {
+        logDiagnostic(`[ERROR] Start-Fehler: ${err.message}`);
+        console.error(err);
+        WLLAMA_SERVER_STATE.status = 'aus';
+        updateServerBadge();
+        alert(`Fehler beim Starten des Servers: ${err.message}`);
+    }
+}
+
+async function stopWllamaServer() {
+    logDiagnostic("[SERVER] Stoppe GGUF Server und gebe Ressourcen frei...");
+    if (WLLAMA_SERVER_STATE.wllamaInstance) {
+        try { await WLLAMA_SERVER_STATE.wllamaInstance.exit(); } catch(e){}
+        WLLAMA_SERVER_STATE.wllamaInstance = null;
+    }
+    WLLAMA_SERVER_STATE.status = 'aus';
+    updateServerBadge();
+    logDiagnostic("[SERVER] Status: AUS");
+    alert("Wllama GGUF Server gestoppt.");
+}
+
+function updateServerBadge() {
+    const badge = document.getElementById('modal-server-status-badge');
+    const navBadge = document.getElementById('nav-server-status-badge');
+    const toggleBtn = document.getElementById('nav-server-toggle-btn');
+    
+    // NEU: Auch den Button direkt im Modal greifbar machen, falls das Modal offen ist
+    const modalToggleBtn = document.querySelector('#app-modal button[onclick="toggleWllamarServerState()"]'); 
+    
+    const status = WLLAMA_SERVER_STATE.status;
+    const statusClass = status === 'an' ? 'status-an' : (status === 'processing' ? 'status-processing' : 'status-aus');
+    
+    if (badge) {
+        badge.className = `server-status-badge ${statusClass}`;
+        badge.textContent = status.toUpperCase();
+    }
+    if (navBadge) {
+        navBadge.className = `server-status-badge ${statusClass}`;
+        navBadge.textContent = status.toUpperCase();
+    }
+    
+    const isRunningOrProcessing = (status === 'an' || status === 'processing');
+    
+    if (toggleBtn) {
+        toggleBtn.textContent = isRunningOrProcessing ? "GGUF Server Stoppen" : "GGUF Server Starten";
+        toggleBtn.style.backgroundColor = isRunningOrProcessing ? "#c62828" : "var(--accent-green)";
+    }
+    
+    // Modal-Button ebenfalls live umfärben, falls das Modal gerade offen ist
+    const modalBtn = document.querySelector('#app-modal button[onclick*="toggleWllamaServerState"]');
+    if (modalBtn) {
+        modalBtn.textContent = isRunningOrProcessing ? "⏹️ GGUF Server Stoppen" : "▶️ GGUF Server Starten";
+        modalBtn.style.backgroundColor = isRunningOrProcessing ? "#c62828" : "var(--accent-green)";
+    }
+}
+
+// OpenAI-kompatibler fetch Interceptor mit Wllama v3.8.1 createChatCompletion API
+const originalFetch = window.fetch;
+window.fetch = async function(resource, init) {
+    const urlStr = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+    if (urlStr && (urlStr.includes('localhost:8080') )) {
+        logDiagnostic(`[API] Eingehender Request an Endpunkt: ${urlStr}`);
+        
+        if ((WLLAMA_SERVER_STATE.status !== 'an' && WLLAMA_SERVER_STATE.status !== 'processing') || !WLLAMA_SERVER_STATE.wllamaInstance) {
+            logDiagnostic(`[API-ERROR] Request abgewiesen: Server nicht bereit (Status: ${WLLAMA_SERVER_STATE.status})`);
+            return new Response(JSON.stringify({ error: { message: 'Wllama GGUF Server ist nicht aktiv.', type: 'server_error' } }), {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (urlStr.includes('/v1/models')) {
+            logDiagnostic(`[API] Model-List Abfrage beantwortet.`);
+            return new Response(JSON.stringify({
+                object: 'list',
+                data: [{ id: WLLAMA_SERVER_STATE.selectedFileName, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'wllama-browser-v381' }]
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+
+        if (urlStr.includes('/v1/chat/completions')) {
+            let body = {};
+            try {
+                if (init && init.body) body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
+            } catch(e){}
+
+            const messages = body.messages || [];
+            const isStream = !!body.stream;
+            const maxTokens = body.max_tokens || 512;
+            const temp = body.temperature ?? SETTINGS.temperature;
+            const topP = body.top_p ?? SETTINGS.top_p;
+
+            logDiagnostic(`[INFERENZ v3.8.1] Starte createChatCompletion | Modell: ${WLLAMA_SERVER_STATE.selectedFileName} | Tokens: ${maxTokens} | Temp: ${temp} | Stream: ${isStream}`);
+
+            const wllama = WLLAMA_SERVER_STATE.wllamaInstance;
+            const completionId = 'chatcmpl-' + Math.random().toString(36).substring(2, 12);
+            const createdTime = Math.floor(Date.now() / 1000);
+
+            if (isStream) {
+                const stream = new ReadableStream({
+                    async start(controller) {
+                        try {
+                            const chatStream = await wllama.createChatCompletion({
+                                messages: messages,
+                                max_tokens: maxTokens,
+                                temperature: temp,
+                                top_p: topP,
+                                top_k: SETTINGS.top_k,
+                                stream: true
+                            });
+
+                            let tokenCount = 0;
+                            for await (const chunk of chatStream) {
+                                tokenCount++;
+                                const eventChunk = {
+                                    id: completionId,
+                                    object: 'chat.completion.chunk',
+                                    created: createdTime,
+                                    model: WLLAMA_SERVER_STATE.selectedFileName,
+                                    choices: chunk.choices || [{ index: 0, delta: { content: '' }, finish_reason: null }]
+                                };
+                                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(eventChunk)}\n\n`));
+                            }
+
+                            logDiagnostic(`[INFERENZ] Stream erfolgreich beendet (${tokenCount} Chunks).`);
+                            controller.enqueue(new TextEncoder().encode(`data: [DONE]\n\n`));
+                            controller.close();
+                        } catch (err) {
+                            logDiagnostic(`[INFERENZ-ERROR] Stream abgebrochen: ${err.message}`);
+                            controller.error(err);
+                        }
+                    }
+                });
+
+                return new Response(stream, {
+                    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }
+                });
+            } else {
+                try {
+                    const responseData = await wllama.createChatCompletion({
+                        messages: messages,
+                        max_tokens: maxTokens,
+                        temperature: temp,
+                        top_p: topP,
+                        top_k: SETTINGS.top_k,
+                        stream: false
+                    });
+                    logDiagnostic(`[INFERENZ] Synchroner Request beendet.`);
+
+                    return new Response(JSON.stringify(responseData), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (err) {
+                    logDiagnostic(`[INFERENZ-ERROR] Sync error: ${err.message}`);
+                    return new Response(JSON.stringify({ error: { message: err.message, type: 'api_error' } }), {
+                        status: 500,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            }
+        }
+    }
+
+    return originalFetch(resource, init);
+};
+// --- ENDE WLLAMA INTEGRATION ---
 
 document.getElementById('erase').addEventListener('click', () => {
     SETTINGS = DEFAULT_SETTINGS;
@@ -797,6 +1223,7 @@ function updateInterface(){
 
     renderCodeList();
     updateSelectedCodeDisplay();
+    updateServerBadge();
 }
 
 function renderDocumentList() {
@@ -1342,6 +1769,7 @@ function countAnnotationsModal() {
     openModalWithHTML(tableHtml);
 }
 
+
 function calculateTextStats() {
     const corpusDocs = getActiveAIAnalysisDocuments();
     let totalCorpusLen = 0, maxDocLen = 0;
@@ -1511,6 +1939,17 @@ function getDocText(doc, removeHtml = false) {
 }
 
 async function runAIAnalysis(config) {
+    // Falls der lokale WASM-Server genutzt wird, prüfen ob er bereit ist
+    if (config.url.includes('localhost:8080') && (WLLAMA_SERVER_STATE.status !== 'an' || !WLLAMA_SERVER_STATE.wllamaInstance)) {
+        alert("Der Wllama GGUF Server ist nicht aktiv. Bitte starten Sie den Server über das Menü (WASM GGUF Server).");
+        return;
+    }
+
+    if (WLLAMA_SERVER_STATE.status === 'an' && WLLAMA_SERVER_STATE.wllamaInstance) {
+        WLLAMA_SERVER_STATE.status = 'processing';
+        updateServerBadge();
+    }
+
     const resultDocName = `KI-Analyse (${config.verfahren}) ${new Date().toLocaleTimeString('de-DE')}`;
     let currentHtml = `<h2>KI-basierte Inhaltsanalyse (${config.verfahren})</h2><hr>`;
     
@@ -1575,11 +2014,12 @@ async function runAIAnalysis(config) {
 
     if (textsToAnalyze.length === 0) {
         updateDocContent(`<p style="color:red;">Keine markierten Dokumente oder Segmente für die Analyse vorhanden.</p>`);
+        if (WLLAMA_SERVER_STATE.status === 'processing') {
+            WLLAMA_SERVER_STATE.status = 'an';
+            updateServerBadge();
+        }
         return;
     }
-
-    const headers = { 'Content-Type': 'application/json' };
-    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
 
     const settingsDocHtml = `
         <div style="background: #f8fafc; border: 1px solid var(--border-color); border-left: 4px solid var(--primary); padding: 12px 15px; margin: 10px 0 15px 0; border-radius: 4px; font-size: 0.9em;">
@@ -1635,7 +2075,6 @@ async function runAIAnalysis(config) {
                 };
                 required = ["assoziation", "textstellen"];
             } else {
-                // Induktion & Deduktion
                 properties = {
                     code: { type: "string" },
                     description: { type: "string" },
@@ -1664,81 +2103,87 @@ async function runAIAnalysis(config) {
         } else if (config.responseFormat === 'json_ollama') {
             requestBody.format = "json";
         }
+
         try {
-
-    const response = await fetch(config.url, { method: 'POST', headers: headers, body: JSON.stringify(requestBody) });
-    
-    if (!response.ok) {
-        // Detaillierte Fehlermeldung aus dem Antwort-Body des Servers auslesen
-        let errorDetails = "";
-        try {
-            const errorJson = await response.json();
-            // Unterstützt gängige API-Strukturen (z.B. OpenAI, Ollama, etc.)
-            errorDetails = errorJson.error?.message || errorJson.message || JSON.stringify(errorJson);
-        } catch (e) {
-            // Fallback, falls kein JSON zurückgegeben wurde (z. B. HTML-Fehlerseiten)
-            errorDetails = await response.text();
-        }
-        throw new Error(`HTTP ${response.status}${errorDetails ? ': ' + errorDetails : ''}`);
-    }
-
-    let aiAnswer = "";
-
-    if (config.useStreaming) {
-        const boxId = `stream-box-${i}`, targetId = `stream-target-${i}`;
-        updateDocContent(`<div id="${boxId}" style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;"><h3 style="margin-top:0;">Ergebnis für ${escapeHTML(item.title)}</h3><pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre></div><hr>`);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop();
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                    try {
-                        const parsed = JSON.parse(trimmed.substring(6));
-                        const content = parsed.choices?.[0]?.delta?.content || "";
-                        if (content) {
-                            aiAnswer += content;
-                            const targetEl = document.getElementById(targetId);
-                            if (targetEl && selectedDocument && selectedDocument.id === newDoc.id) targetEl.innerText = aiAnswer;
-                        }
-                    } catch (e) {}
-                }
+            // FIX: headers ordnungsgemäß initialisieren und optionale API-Keys übergeben
+            const headers = { 'Content-Type': 'application/json' };
+            if (config.apiKey) {
+                headers['Authorization'] = `Bearer ${config.apiKey}`;
             }
+
+            const response = await fetch(config.url, { method: 'POST', headers: headers, body: JSON.stringify(requestBody) });
+            
+            if (!response.ok) {
+                let errorDetails = "";
+                try {
+                    const errorJson = await response.json();
+                    errorDetails = errorJson.error?.message || errorJson.message || JSON.stringify(errorJson);
+                } catch (e) {
+                    errorDetails = await response.text();
+                }
+                throw new Error(`HTTP ${response.status}${errorDetails ? ': ' + errorDetails : ''}`);
+            }
+
+            let aiAnswer = "";
+
+            if (config.useStreaming) {
+                const boxId = `stream-box-${i}`, targetId = `stream-target-${i}`;
+                updateDocContent(`<div id="${boxId}" style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;"><h3 style="margin-top:0;">Ergebnis für ${escapeHTML(item.title)}</h3><pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre></div><hr>`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let buffer = "";
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+                            try {
+                                const parsed = JSON.parse(trimmed.substring(6));
+                                const content = parsed.choices?.[0]?.delta?.content || "";
+                                if (content) {
+                                    aiAnswer += content;
+                                    const targetEl = document.getElementById(targetId);
+                                    if (targetEl && selectedDocument && selectedDocument.id === newDoc.id) targetEl.innerText = aiAnswer;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                const renderedHtml = renderAIResult(aiAnswer, config.verfahren);
+                currentHtml = currentHtml.replace(`<pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>`, renderedHtml);
+                newDoc.htmlContent = currentHtml;
+                if (selectedDocument && selectedDocument.id === newDoc.id) textDisplay.innerHTML = currentHtml;
+            } else {
+                const data = await response.json();
+                aiAnswer = data.choices?.[0]?.message?.content || "";
+                updateDocContent(`<div style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;">${renderAIResult(aiAnswer, config.verfahren)}</div><hr>`);
+            }
+        } catch (err) {
+            var rawMessage = err.message || "";
+            var message = "";
+
+            if (
+                rawMessage.includes("NetworkError") || 
+                rawMessage.includes("Failed to fetch") || 
+                err.name === "TypeError"
+            ) {
+                message = "LLM-Server antwortet nicht. Prüfe die Angaben zu Endpunkt & Modell in MyQDA sowie Funktionalität und Einstellungen des KI-Servers (enable CORS).";
+            } else {
+                message = escapeHTML(rawMessage);
+            }
+
+            updateDocContent(`<p style="color:#e11d48;">Fehler: ${message}</p>`);
         }
-        const renderedHtml = renderAIResult(aiAnswer, config.verfahren);
-        currentHtml = currentHtml.replace(`<pre id="${targetId}" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>`, renderedHtml);
-        newDoc.htmlContent = currentHtml;
-        if (selectedDocument && selectedDocument.id === newDoc.id) textDisplay.innerHTML = currentHtml;
-    } else {
-        const data = await response.json();
-        aiAnswer = data.choices?.[0]?.message?.content || "";
-        updateDocContent(`<div style="background:#fff; border:1px solid #cbd5e1; padding:15px; margin:12px 0; border-radius:6px;">${renderAIResult(aiAnswer, config.verfahren)}</div><hr>`);
-    }
-} catch (err) {
-    var rawMessage = err.message || "";
-    var message = "";
-
-    // Prüfung auf Netzwerkfehler (Firefox, Chrome/Edge sowie allgemeine Typ-Fehler bei Verbindungsproblemen)
-    if (
-        rawMessage.includes("NetworkError") || 
-        rawMessage.includes("Failed to fetch") || 
-        err.name === "TypeError"
-    ) {
-        message = "LLM-Server antwortet nicht. Prüfe die Angaben zu Endpunkt & Modell in MyQDA sowie Funktionalität und Einstellungen des KI-Servers (enable CORS).";
-    } else {
-        message = escapeHTML(rawMessage);
     }
 
-    updateDocContent(`<p style="color:#e11d48;">Fehler: ${message}</p>`);
-}
-
+    if (WLLAMA_SERVER_STATE.status === 'processing' && WLLAMA_SERVER_STATE.wllamaInstance) {
+        WLLAMA_SERVER_STATE.status = 'an';
+        updateServerBadge();
     }
 }
 
@@ -1811,6 +2256,7 @@ function annotateTextstellenCorpusFromCard(cardId) {
     if (!codeName) return alert("Kein gültiger Code-Name gefunden.");
     executeAnnotation(codeName, quotes);
 }
+
 
 function executeAnnotation(codeName, quotes) {
     if (!Array.isArray(quotes) || quotes.length === 0) {
@@ -1913,6 +2359,7 @@ function executeAnnotation(codeName, quotes) {
     }
     alert(report);
 }
+
 
 async function handleFileSelection() {
     const data = await openAndReadJsonFile();
