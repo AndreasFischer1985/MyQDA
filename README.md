@@ -29,14 +29,16 @@ Da MyQDA als eigenständige HTML-Datei vorliegt, ist keine komplexe Installation
 
 1. Öffnen Sie die aktuelle Version online ([https://andreasfischer1985.github.io/MyQDA/src/MyQDA.html](https://andreasfischer1985.github.io/MyQDA/src/MyQDA.html)) oder speichern Sie die HTML-Datei lokal.
 2. Öffnen Sie die Datei z.B. per Doppelklick in einem modernen Webbrowser (z. B. Chrome, Firefox, Edge).
-3. Verbinden Sie das Tool optional mit einem lokalen oder externen KI-Server (z.B. über LMStudio), um KI-gestützte Inhaltsanalysen durchzuführen.
+3. Verbinden Sie das Tool optional mit einem lokalen oder externen KI-Server (z.B. über LMStudio), um KI-gestützte Inhaltsanalysen durchzuführen. Seit Version 1.22 bietet MyQDA auch einen integrierten experimentellen KI-Server für einfache Funktionstests. 
 
 ### KI-Server (am Beispiel Jan.ai)
 Wenn man MyQDA beispielsweise mit einem lokalen KI-Server per Jan.ai nutzen möchte, muss Jan.ai unter [https://www.jan.ai/](https://www.jan.ai/) herunterladen, installieren und einrichten (für Fragen in diesem Zusammenhang sei auf die Dokumentation von Jan.ai verwiesen). Anschließend muss man in Jan.ai unter „local API Server“ neben CORS enabled (true) unter „Configuration“ noch ein Sternchen (*) bei den trusted hosts eintragen. Außerdem legt Jan.ai Wert darauf, dass das Modell in MyQDA exakt benannt wird (z.B. gemma-3-1b-it-Q4_K_M.gguf) und auch der Endpunkt muss in MyQDA natürlich adäquat angegeben werden (http://127.0.0.1:1337/v1/chat/completions). 
 
 Mit diesen Einstellungen lässt sich ein local API Server per Jan.ai starten (Button „Start Server“), der sich für KI-basierte Inhaltsanalysen in MyQDA nutzen lässt. 
 
-Verbreitete Alternativen zu Jan.ai stellen z.B. LMStudio (wo man in den Settings zu Model Server *Enable CORS* aktivieren muss), Ollama (wo man *set "OLLAMA_ORIGINS=\*"* setzen muss), oder - im Rahmen von Command-Line-Interfaces - llama.cpp dar.
+Verbreitete Alternativen zu Jan.ai stellen z.B. LMStudio (wo man in den Settings zu Model Server *Enable CORS* aktivieren muss), Ollama (wo man *set "OLLAMA_ORIGINS=\*"* setzen muss), oder - im Rahmen von Command-Line-Interfaces - llama.cpp dar. 
+
+Für einfache Funktionstests bietet MyQDA seit Verskon 1.22 auch einen integrierten experimentellen KI-Server an der sich im Menü unter "WASM GGUF Server (experimental)" starten lässt (wobei nur kleinere Modelle mit Dateigrößen unter 2GB zur Wahl stehen; Modelle können aus einer Dropdown-Auswahl direkt von Huggingface gestreamt oder lokal im GGUF-Format bereitgestellt werden). 
 
 
 ---
