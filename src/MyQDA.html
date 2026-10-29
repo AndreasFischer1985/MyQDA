@@ -6,7 +6,7 @@
     <meta name="author" content="Dr. Andreas Fischer">
     <meta name="copyright" content="Dr. Andreas Fischer">
     <meta name="reply-to" content="andreasfischer1985@web.de">
-    <title>MyQDA - Text-Annotation-Tool v1.22</title>    
+    <title>MyQDA - Text-Annotation-Tool v1.23</title>    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>   
     <script type="module">
@@ -747,11 +747,16 @@ function openLocalServerModal() {
             <div style="margin-top:6px; font-size:0.9em; color:var(--text-muted);">Aktives Modell: <strong style="color:var(--text-dark);">${escapeHTML(WLLAMA_SERVER_STATE.selectedFileName)}</strong> | Kontext (ctx): <strong>${SETTINGS.ctxSize}</strong> | Temp: <strong>${SETTINGS.temperature}</strong></div>
         </div>
 
+        <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <input type="checkbox" id="wllama_webgpu" checked style="width: auto; margin: 0;">
+            <label for="wllama_webgpu" style="margin: 0; cursor: pointer;">WebGPU aktivieren</label>
+        </div>
+
         <div class="form-row">
             <div class="form-group" style="flex:2;">
                 <label>Kleine GGUF-Modelle für einfache Funktionstests herunterladen:</label>
                 <select id="wllama_model_select" style="width:100%; margin-bottom: 8px;">
- <option value="https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('Gemma-3-1b-it') ? 'selected' : ''}>Gemma-3-1b-it-GGUF (Q4 ~787MB)</option>
+                    <option value="https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('Gemma-3-1b-it') ? 'selected' : ''}>Gemma-3-1b-it-GGUF (Q4 ~787MB)</option>
                     <option value="https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('Qwen2.5-0.5B') ? 'selected' : ''}>Qwen 2.5 0.5B Instruct (Q4 ~390MB)</option>
                     <option value="https://huggingface.co/jeradf/SmolLM2-135M-Instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf" ${WLLAMA_SERVER_STATE.selectedUrl.includes('SmolLM2') ? 'selected' : ''}>SmolLM2 135M Instruct (Q4 ~98MB)</option>                  
                 </select>
@@ -837,6 +842,20 @@ async function startWllamaServer() {
         return;
     }
 
+    const webgpuCheckbox = document.getElementById('wllama_webgpu');
+    const useWebGPU = webgpuCheckbox ? webgpuCheckbox.checked : true;
+    
+    const loadOptions = {
+        n_ctx: SETTINGS.ctxSize,
+        jinja: true
+    };
+    if (!useWebGPU) {
+        loadOptions.n_gpu_layers = 0;
+        logDiagnostic("[SERVER] WebGPU deaktiviert -> n_gpu_layers=0 gesetzt.");
+    } else {
+        logDiagnostic("[SERVER] WebGPU aktiv.");
+    }
+
     WLLAMA_SERVER_STATE.status = 'processing';
     updateServerBadge();
     logDiagnostic(`[SERVER] Starte Server-Initialisierung für Modell: ${WLLAMA_SERVER_STATE.selectedFileName}`);
@@ -856,24 +875,27 @@ async function startWllamaServer() {
             warn: (...args) => logDiagnostic('[WARN] ' + args.join(' ')),
             error: (...args) => logDiagnostic('[ERROR] ' + args.join(' '))
         };
+    
+        const numThreads = Math.min(navigator.hardwareConcurrency || 4, 8);
 
         WLLAMA_SERVER_STATE.wllamaInstance = new window.Wllama({
-            'default': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/wllama.wasm'
+            'default': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/wllama.wasm',
+            'single-thread': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/wllama-single-thread.wasm',
+            'multi-thread': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/wasm/wllama-multi-thread.wasm',
         }, {
-            logger: customLogger
+            logger: customLogger,
+            nThreads: numThreads 
         });
 
         const wllama = WLLAMA_SERVER_STATE.wllamaInstance;
-        const ctxSize = SETTINGS.ctxSize;
 
         if (WLLAMA_SERVER_STATE.selectedSourceType === 'local' && WLLAMA_SERVER_STATE.localFile) {
             logDiagnostic(`[SERVER] Lade lokale Datei in den Speicher...`);
-            await wllama.loadModel([WLLAMA_SERVER_STATE.localFile], { n_ctx: ctxSize, jinja: true });
+            await wllama.loadModel([WLLAMA_SERVER_STATE.localFile], loadOptions);
         } else {
             logDiagnostic(`[SERVER] Lade Modell via URL: ${WLLAMA_SERVER_STATE.selectedUrl}`);
             await wllama.loadModelFromUrl(WLLAMA_SERVER_STATE.selectedUrl, {
-                n_ctx: ctxSize,
-                jinja: true,
+                ...loadOptions,
                 progressCallback: ({ loaded, total }) => {
                     if (total) {
                         const pct = Math.round((loaded / total) * 100);
@@ -1022,7 +1044,8 @@ window.fetch = async function(resource, init) {
                 });
 
                 return new Response(stream, {
-                    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }
+                    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive',
+                               'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }
                 });
             } else {
                 try {
@@ -1038,13 +1061,19 @@ window.fetch = async function(resource, init) {
 
                     return new Response(JSON.stringify(responseData), {
                         status: 200,
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json',
+                                   'Cross-Origin-Opener-Policy': 'same-origin',
+                                   'Cross-Origin-Embedder-Policy': 'require-corp'
+                                 }
                     });
                 } catch (err) {
                     logDiagnostic(`[INFERENZ-ERROR] Sync error: ${err.message}`);
                     return new Response(JSON.stringify({ error: { message: err.message, type: 'api_error' } }), {
                         status: 500,
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json', 
+                                   'Cross-Origin-Opener-Policy': 'same-origin',
+                                   'Cross-Origin-Embedder-Policy': 'require-corp'
+                                 }
                     });
                 }
             }
@@ -1828,9 +1857,25 @@ function openAIModal() {
               Frage / Kontext:</label><textarea id="ai_context">${escapeHTML(SETTINGS.context)}</textarea></div>
             <div class="form-row">
                 <div class="form-group"><label  title="Name des vom KI-Server bereitgestellten KI-Modells">
-                   KI-Modell:</label><input type="text" id="ai_model" value="${escapeHTML(SETTINGS.model)}"></div>
+                   KI-Modell:</label><input type="text" id="ai_model" list="model-options" value="${escapeHTML(SETTINGS.model)}"></div>
+                   <datalist id="model-options">
+                     <option value="google/gemma-4-12b-qat">
+                     <option value="google/gemma-4-12b">
+                     <option value="google/gemma-4-E2B-it">
+                     <option value="google/gemma-4-E4B-it">
+                     <option value="google/gemma-4-26B-A4B-it">
+                     <option value="google/gemma-4-31B-it">
+                     <option value="Qwen/Qwen3.8-27B">
+                   </datalist>
+
                 <div class="form-group"><label  title="API-Endpunkt eines KI-Servers, z.B. &quot;http://127.0.0.1:1234/v1/chat/completions&quot;">
-                   API Endpunkt URL:</label><input type="text" id="ai_url" value="${escapeHTML(SETTINGS.url)}"></div>
+                   API Endpunkt URL:</label><input type="text" id="ai_url" list="endpoint-options" value="${escapeHTML(SETTINGS.url)}"></div>
+                   <datalist id="endpoint-options">
+                     <option value="https://fbb-vllm.cultus.dir/v1/chat/completions">
+                     <option value="http://localhost:8080/v1/chat/completions">
+                     <option value="http://127.0.0.1:1234/v1/chat/completions">
+                     <option value="http://127.0.0.1:1337/v1/chat/completions">
+                   </datalist>
             </div>
             <div class="form-group"><label title="API-Key, falls vom KI-Server gefordert">
               API Key (Optional):</label><input type="text" id="ai_key" value="${escapeHTML(SETTINGS.apiKey)}"></div>
